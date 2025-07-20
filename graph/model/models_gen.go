@@ -2,25 +2,34 @@
 
 package model
 
-type Mutation struct {
+type Comment struct {
+	ID        string `json:"id"`
+	Video     *Video `json:"video"`
+	User      *User  `json:"user"`
+	Text      string `json:"text"`
+	CreatedAt string `json:"created_at"`
 }
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
+type Mutation struct {
 }
 
 type Query struct {
 }
 
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
+type User struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	CreatedAt string `json:"created_at"`
 }
 
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type Video struct {
+	ID          string  `json:"id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	URL         string  `json:"url"`
+	Metadata    *string `json:"metadata,omitempty"`
+	Uploader    *User   `json:"uploader"`
+	CreatedAt   string  `json:"created_at"`
 }

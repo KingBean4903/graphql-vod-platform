@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:15
+    container_name: vod-db
+    restart: always
+    environment:
+      POSTGRES_USER: vodusr
+      POSTGRES_PASSWORD: pass@1886
+      POSTGRES_DB: vodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - vod-net
+
+  vodservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vod-app
+    depends_on:
+      - db
+    environment:
+      PGHOST: localhost
+      PGUSER: vodusr
+      PGPASSWORD: pass@1886
+      PGDATABASE: vodb
+    networks:
+      - vod-net
+
+volumes:
+  pgdata:
+
+networks:
+  vod-net:
+    driver: bridge

@@ -34,10 +34,22 @@ type Query {
   user(id: ID!): User
 }
 
+type AuthResponse {
+  token: String!
+  user: User!
+}
+
+
+type Subscription {
+  newComment(videoId: ID!): Comment!
+}
+
 type Mutation {
-  UploadVideo(title: String!, description: String!, url: String!, metadata: JSON): Video!
+  uploadVideo(title: String!, description: String!, url: String!, metadata: JSON): Video!
   postComment(videoId: ID!, text: String!): Comment!
   likeVideo(videoId: ID!): Boolean!
+  register(username: String!, email: String!, password: String!): AuthResponse!
+  login(email: String!, password: String!): AuthResponse!
 }
 
 scalar JSON

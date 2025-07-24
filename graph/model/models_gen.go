@@ -2,6 +2,11 @@
 
 package model
 
+type AuthResponse struct {
+	Token string `json:"token"`
+	User  *User  `json:"user"`
+}
+
 type Comment struct {
 	ID        string `json:"id"`
 	Video     *Video `json:"video"`
@@ -14,6 +19,9 @@ type Mutation struct {
 }
 
 type Query struct {
+}
+
+type Subscription struct {
 }
 
 type User struct {

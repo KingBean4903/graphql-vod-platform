@@ -6,24 +6,159 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/KingBean4903/graphql-vod-platform/graph/model"
+	"github.com/KingBean4903/graphql-vod-platform/internal/auth"
+	"github.com/KingBean4903/graphql-vod-platform/internal/db"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // UploadVideo is the resolver for the UploadVideo field.
 func (r *mutationResolver) UploadVideo(ctx context.Context, title string, description string, url string, metadata *string) (*model.Video, error) {
-	panic(fmt.Errorf("not implemented: UploadVideo - UploadVideo"))
+	userID, ok := auth.GetUserID(ctx)
+	if !ok {
+		return nil, errors.New("unauthorized")
+	}
+
+	video := db.Video{
+		Title:       title,
+		Description: "",
+		URL:         url,
+		Views:       0,
+		UserID:      userID,
+	}
+
+	if description != nil {
+		video.Description = *description
+	}
+
+	if metadata != nil {
+		jsonMeta, err := datatypes.JSONType(metadata)
+		if err != nil {
+			return nil, errors.New("invalid metadata JSON")
+		}
+		video.Metadata = jsonMeta
+	}
+
+	if err := db.DB.Create(&video).Error; err != nil {
+		return nil, err
+	}
+
+	var uploader db.User
+	if err := db.DB.First(&uploader, userID).Error; err != nil {
+		return nil, err
+	}
+
+	return &model.Video{
+		ID:          int(video.ID),
+		Title:       video.Title,
+		Description: &video.Description,
+		URL:         video.URL,
+		Views:       video.Views,
+		Metadata:    metadata,
+		CreatedAt:   video.CreatedAt.Format(time.RFC3339),
+		Uploader: &model.User{
+			ID:       int(uploader.ID),
+			Username: uploader.Username,
+			Email:    uploader.Email,
+			Role:     uploader.Role,
+		},
+	}, nil
 }
 
 // PostComment is the resolver for the postComment field.
 func (r *mutationResolver) PostComment(ctx context.Context, videoID string, text string) (*model.Comment, error) {
-	panic(fmt.Errorf("not implemented: PostComment - postComment"))
+	userID, ok := auth.GetUserID(ctx)
+	if !ok {
+		return nil, errors.New("unauthorized")
+	}
+
+	// Save comment to DB
+	comment := db.Comment{UserID: userID, VideoID: videoID, Text: text}
+	if err := db.DB.Create(&comment).Error; err != nil {
+		return nil, err
+	}
+
+	out := &model.Comment{
+		ID:   int(comment.ID),
+		Text: comment.Text,
+		User: &model.User{ID: int(userID)},
+	}
+
+	r.PubSub.Publish("video:"+videoID, &model.Comment{
+		ID:   int(comment.ID),
+		Text: comment.Text,
+		User: &model.User{ID: int(userID)},
+	})
 }
 
 // LikeVideo is the resolver for the likeVideo field.
 func (r *mutationResolver) LikeVideo(ctx context.Context, videoID string) (bool, error) {
 	panic(fmt.Errorf("not implemented: LikeVideo - likeVideo"))
+}
+
+// Register is the resolver for the register field.
+func (r *mutationResolver) Register(ctx context.Context, username string, email string, password string) (*model.AuthResponse, error) {
+	hashedPassword, err := bcrypt.GeneratePassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.New("Failed to hash password")
+	}
+
+	user := db.User{
+		Username: username,
+		Email:    strings.ToLower(email),
+		Password: string(hashedPassword),
+	}
+
+	if err := db.DB.Create(&user).Error; err != nil {
+		return nil, errors.New("failedto create user")
+	}
+
+	token, err := auth.GenerateToken(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuthResponse{
+		Token: token,
+		User: &model.User{
+			ID:       int(user.ID),
+			Username: user.Username,
+			Email:    user.Email,
+			Role:     user.Role,
+		},
+	}, nil
+}
+
+// Login is the resolver for the login field.
+func (r *mutationResolver) Login(ctx context.Context, email string, password string) (*model.AuthResponse, error) {
+	var user db.User
+	if err := db.DB.Where("email = ?", strings.ToLower(email)).First(&user).Error; err != nil {
+		return nil, errors.New("invalid credentials")
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err != nil {
+		return nil, errors.New("invalid credentials")
+	}
+
+	token, err := auth.GenerateToken(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuthResponse{
+		Token: token,
+		User: &model.User{
+			ID:       int(user.ID),
+			Username: user.Username,
+			Email:    user.Email,
+			Role:     user.Role,
+		},
+	}, nil
 }
 
 // Videos is the resolver for the videos field.
@@ -41,26 +176,46 @@ func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error
 	panic(fmt.Errorf("not implemented: User - user"))
 }
 
+// NewComment is the resolver for the newComment field.
+func (r *subscriptionResolver) NewComment(ctx context.Context, videoID string) (<-chan *model.Comment, error) {
+		
+		topic := "video:"+videoID
+		rawCh, err := r.PubSub.Subscribe(topic)
+		if err != nil {
+				return nil, err
+		}
+
+		out := make(chan *model.Comment, 1)
+		go func() {
+			for {
+				select {
+						case <- ctx.Done():
+									return
+						case raw := <-rawCh:
+								data := raw.(map[string]any)
+								out <- &model.Comment{
+										ID: int(data["id"].(float64)),
+										Text: data["text"].(string),
+										User: &model.User{
+												ID: int(data["user"].(map[string]any)["id"].(float64)),
+										},
+								}
+				}
+			}	
+		}()
+
+		return out, nil
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
-}
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
-}
-*/
+type subscriptionResolver struct{ *Resolver }

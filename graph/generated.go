@@ -67,7 +67,7 @@ type ComplexityRoot struct {
 		Login       func(childComplexity int, email string, password string) int
 		PostComment func(childComplexity int, videoID string, text string) int
 		Register    func(childComplexity int, username string, email string, password string) int
-		UploadVideo func(childComplexity int, title string, description string, url string, metadata *string) int
+		UploadVideo func(childComplexity int, title string, description *string, url string, metadata map[string]any) int
 	}
 
 	Query struct {
@@ -96,11 +96,12 @@ type ComplexityRoot struct {
 		Title       func(childComplexity int) int
 		URL         func(childComplexity int) int
 		Uploader    func(childComplexity int) int
+		Views       func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
-	UploadVideo(ctx context.Context, title string, description string, url string, metadata *string) (*model.Video, error)
+	UploadVideo(ctx context.Context, title string, description *string, url string, metadata map[string]any) (*model.Video, error)
 	PostComment(ctx context.Context, videoID string, text string) (*model.Comment, error)
 	LikeVideo(ctx context.Context, videoID string) (bool, error)
 	Register(ctx context.Context, username string, email string, password string) (*model.AuthResponse, error)
@@ -241,7 +242,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UploadVideo(childComplexity, args["title"].(string), args["description"].(string), args["url"].(string), args["metadata"].(*string)), true
+		return e.complexity.Mutation.UploadVideo(childComplexity, args["title"].(string), args["description"].(*string), args["url"].(string), args["metadata"].(map[string]any)), true
 
 	case "Query.user":
 		if e.complexity.Query.User == nil {
@@ -369,6 +370,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Video.Uploader(childComplexity), true
+
+	case "Video.views":
+		if e.complexity.Video.Views == nil {
+			break
+		}
+
+		return e.complexity.Video.Views(childComplexity), true
 
 	}
 	return 0, false
@@ -715,13 +723,13 @@ func (ec *executionContext) field_Mutation_uploadVideo_argsTitle(
 func (ec *executionContext) field_Mutation_uploadVideo_argsDescription(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (string, error) {
+) (*string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
 	if tmp, ok := rawArgs["description"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal *string
 	return zeroVal, nil
 }
 
@@ -741,13 +749,13 @@ func (ec *executionContext) field_Mutation_uploadVideo_argsURL(
 func (ec *executionContext) field_Mutation_uploadVideo_argsMetadata(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (*string, error) {
+) (map[string]any, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
 	if tmp, ok := rawArgs["metadata"]; ok {
-		return ec.unmarshalOJSON2ᚖstring(ctx, tmp)
+		return ec.unmarshalOJSON2map(ctx, tmp)
 	}
 
-	var zeroVal *string
+	var zeroVal map[string]any
 	return zeroVal, nil
 }
 
@@ -1134,6 +1142,8 @@ func (ec *executionContext) fieldContext_Comment_video(_ context.Context, field 
 				return ec.fieldContext_Video_description(ctx, field)
 			case "url":
 				return ec.fieldContext_Video_url(ctx, field)
+			case "views":
+				return ec.fieldContext_Video_views(ctx, field)
 			case "metadata":
 				return ec.fieldContext_Video_metadata(ctx, field)
 			case "uploader":
@@ -1305,7 +1315,7 @@ func (ec *executionContext) _Mutation_uploadVideo(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UploadVideo(rctx, fc.Args["title"].(string), fc.Args["description"].(string), fc.Args["url"].(string), fc.Args["metadata"].(*string))
+		return ec.resolvers.Mutation().UploadVideo(rctx, fc.Args["title"].(string), fc.Args["description"].(*string), fc.Args["url"].(string), fc.Args["metadata"].(map[string]any))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1338,6 +1348,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadVideo(ctx context.Contex
 				return ec.fieldContext_Video_description(ctx, field)
 			case "url":
 				return ec.fieldContext_Video_url(ctx, field)
+			case "views":
+				return ec.fieldContext_Video_views(ctx, field)
 			case "metadata":
 				return ec.fieldContext_Video_metadata(ctx, field)
 			case "uploader":
@@ -1653,6 +1665,8 @@ func (ec *executionContext) fieldContext_Query_videos(_ context.Context, field g
 				return ec.fieldContext_Video_description(ctx, field)
 			case "url":
 				return ec.fieldContext_Video_url(ctx, field)
+			case "views":
+				return ec.fieldContext_Video_views(ctx, field)
 			case "metadata":
 				return ec.fieldContext_Video_metadata(ctx, field)
 			case "uploader":
@@ -1710,6 +1724,8 @@ func (ec *executionContext) fieldContext_Query_video(ctx context.Context, field 
 				return ec.fieldContext_Video_description(ctx, field)
 			case "url":
 				return ec.fieldContext_Video_url(ctx, field)
+			case "views":
+				return ec.fieldContext_Video_views(ctx, field)
 			case "metadata":
 				return ec.fieldContext_Video_metadata(ctx, field)
 			case "uploader":
@@ -2339,14 +2355,11 @@ func (ec *executionContext) _Video_description(ctx context.Context, field graphq
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Video_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2406,6 +2419,50 @@ func (ec *executionContext) fieldContext_Video_url(_ context.Context, field grap
 	return fc, nil
 }
 
+func (ec *executionContext) _Video_views(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Video_views(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Views, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt642int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Video_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Video",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int64 does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Video_metadata(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Video_metadata(ctx, field)
 	if err != nil {
@@ -2429,9 +2486,9 @@ func (ec *executionContext) _Video_metadata(ctx context.Context, field graphql.C
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(map[string]any)
 	fc.Result = res
-	return ec.marshalOJSON2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOJSON2map(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Video_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4898,11 +4955,13 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "description":
 			out.Values[i] = ec._Video_description(ctx, field, obj)
+		case "url":
+			out.Values[i] = ec._Video_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "url":
-			out.Values[i] = ec._Video_url(ctx, field, obj)
+		case "views":
+			out.Values[i] = ec._Video_views(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -5336,6 +5395,22 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNInt642int(ctx context.Context, v any) (int, error) {
+	res, err := graphql.UnmarshalInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt642int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5703,21 +5778,21 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalOJSON2ᚖstring(ctx context.Context, v any) (*string, error) {
+func (ec *executionContext) unmarshalOJSON2map(ctx context.Context, v any) (map[string]any, error) {
 	if v == nil {
 		return nil, nil
 	}
-	res, err := graphql.UnmarshalString(v)
-	return &res, graphql.ErrorOnPath(ctx, err)
+	res, err := graphql.UnmarshalMap(v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOJSON2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+func (ec *executionContext) marshalOJSON2map(ctx context.Context, sel ast.SelectionSet, v map[string]any) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	_ = sel
 	_ = ctx
-	res := graphql.MarshalString(*v)
+	res := graphql.MarshalMap(v)
 	return res
 }
 

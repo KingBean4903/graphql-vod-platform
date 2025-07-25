@@ -3,45 +3,52 @@ package auth
 import (
 	"errors"
 	"os"
+	"fmt"
+
 	"time"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var secret = []byte("JWT_SECRET")
+var secret = []byte(os.Getenv("JWT_SECRET"))
 
 type CustomClaims struct {
-		UserID uint `json:"user_id"`
+		UserID string `json:"user_id"`
 		jwt.RegisteredClaims
 }
 
-func GenerateToken(userID uint) (string, error) {
+func GenerateToken(userID string) (string, error) {
 	
 	claims := CustomClaims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims {
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-				IssuedAt: jwt.NewNumericDate(time.Now())
+				IssuedAt: jwt.NewNumericDate(time.Now()),
 		},
 	}
+	
+	fmt.Println("Secret JWT", secret)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodH256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secret)
 	
 }
 
-func ParseToken(tokenStr string) (uint, error) {
+func ParseToken(tokenStr string) (string, error) {
 	
 	token, err := jwt.ParseWithClaims(tokenStr, &CustomClaims{}, func(token *jwt.Token)(interface{}, error) {
 		return secret, nil
 	})
 
 	if err != nil || !token.Valid {
-			return 0, errors.New("invalid token")
+			return "", errors.New("invalid token")
 	}
 	claims, ok := token.Claims.(*CustomClaims)
 
+	
+	fmt.Println("Secret JWT", secret)
+
 	if !ok {
-			return 0, errors.New("cannot parse claims")
+			return "", errors.New("cannot parse claims")
 	}
 	
 	return claims.UserID, nil

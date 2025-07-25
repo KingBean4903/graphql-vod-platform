@@ -8,8 +8,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 
-	"github.com/KingBean4903/graphql-vod-platform/auth"
-	"github.com/KingBean4903/graphql-vod-platform/db"
+	"github.com/KingBean4903/graphql-vod-platform/internal/auth"
+	"github.com/KingBean4903/graphql-vod-platform/internal/db"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
@@ -29,6 +29,9 @@ func main() {
 	port := os.Getenv("PORT")
 
 	err := godotenv.Load()
+	if err != nil {
+			log.Println("No .env file found")
+	}
 
 	realtime := realtime.NewRedisPubSub()
 
@@ -39,12 +42,15 @@ func main() {
 	// Connect to Db
 	db.Init()
 
+	resolver := &graph.Resolver{
+				DB: db.DB,
+				PubSub: realtime,
+	}
+
 	// GraphQL handler
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{
-			PubSub: realtime,
-		},
-	}))
+		Resolvers: resolver},
+	))
 
 	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.GET{})
@@ -62,9 +68,9 @@ func main() {
 	r.Use(auth.Middleware)
 
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	r.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	r.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }

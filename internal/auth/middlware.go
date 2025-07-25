@@ -30,7 +30,7 @@ func Middleware(next http.Handler) http.Handler {
 
 }
 
-func GetUserID(ctx context.Context) (uint, bool) {
-		id, ok := ctx.Value(UserIDKey).(uint)
+func GetUserID(ctx context.Context) (string, bool) {
+		id, ok := ctx.Value(UserIDKey).(string)
 		return id, ok
 }

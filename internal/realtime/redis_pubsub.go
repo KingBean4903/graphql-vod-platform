@@ -2,7 +2,6 @@ package realtime
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
 
 	"github.com/KingBean4903/graphql-vod-platform/internal/redis"
@@ -11,7 +10,7 @@ import (
 type RedisPubSub struct {}
 
 func NewRedisPubSub() *RedisPubSub {
-	return &RedisPubSub
+	return &RedisPubSub{}
 }
 
 func (r *RedisPubSub) Publish(topic string, msg string) error {

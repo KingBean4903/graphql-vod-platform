@@ -6,6 +6,8 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"errors"
 	"fmt"
 	"time"
@@ -14,10 +16,11 @@ import (
 	"github.com/KingBean4903/graphql-vod-platform/internal/auth"
 	"github.com/KingBean4903/graphql-vod-platform/internal/db"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/datatypes"
 )
 
 // UploadVideo is the resolver for the UploadVideo field.
-func (r *mutationResolver) UploadVideo(ctx context.Context, title string, description string, url string, metadata *string) (*model.Video, error) {
+func (r *mutationResolver) UploadVideo(ctx context.Context, title string, description *string, url string, metadata map[string]any) (*model.Video, error) {
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
 		return nil, errors.New("unauthorized")
@@ -25,23 +28,18 @@ func (r *mutationResolver) UploadVideo(ctx context.Context, title string, descri
 
 	video := db.Video{
 		Title:       title,
-		Description: "",
+		Description: description,
 		URL:         url,
 		Views:       0,
-		UserID:      userID,
+		//		Metadata:    datatypes.JSON(string(metadata)),
+		UserID: userID,
 	}
 
-	if description != nil {
-		video.Description = *description
+	jsonStr, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
 	}
-
-	if metadata != nil {
-		jsonMeta, err := datatypes.JSONType(metadata)
-		if err != nil {
-			return nil, errors.New("invalid metadata JSON")
-		}
-		video.Metadata = jsonMeta
-	}
+	video.Metadata = datatypes.JSON(jsonStr)
 
 	if err := db.DB.Create(&video).Error; err != nil {
 		return nil, err
@@ -53,15 +51,15 @@ func (r *mutationResolver) UploadVideo(ctx context.Context, title string, descri
 	}
 
 	return &model.Video{
-		ID:          int(video.ID),
+		ID:          string(video.ID),
 		Title:       video.Title,
-		Description: &video.Description,
+		Description: video.Description,
 		URL:         video.URL,
-		Views:       video.Views,
+		Views:       int(video.Views),
 		Metadata:    metadata,
 		CreatedAt:   video.CreatedAt.Format(time.RFC3339),
 		Uploader: &model.User{
-			ID:       int(uploader.ID),
+			ID:       string(uploader.ID),
 			Username: uploader.Username,
 			Email:    uploader.Email,
 			Role:     uploader.Role,
@@ -82,17 +80,21 @@ func (r *mutationResolver) PostComment(ctx context.Context, videoID string, text
 		return nil, err
 	}
 
+
 	out := &model.Comment{
-		ID:   int(comment.ID),
+		ID:   comment.ID,
 		Text: comment.Text,
-		User: &model.User{ID: int(userID)},
+		User: &model.User{ID: userID},
 	}
 
-	r.PubSub.Publish("video:"+videoID, &model.Comment{
-		ID:   int(comment.ID),
-		Text: comment.Text,
-		User: &model.User{ID: int(userID)},
-	})
+	cmtStr, err := json.Marshal(out)
+	if err != nil {
+			return nil, err
+	}
+
+	r.PubSub.Publish("video:"+videoID, string(cmtStr))
+
+	return out, nil
 }
 
 // LikeVideo is the resolver for the likeVideo field.
@@ -102,7 +104,7 @@ func (r *mutationResolver) LikeVideo(ctx context.Context, videoID string) (bool,
 
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, username string, email string, password string) (*model.AuthResponse, error) {
-	hashedPassword, err := bcrypt.GeneratePassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.New("Failed to hash password")
 	}
@@ -125,7 +127,7 @@ func (r *mutationResolver) Register(ctx context.Context, username string, email 
 	return &model.AuthResponse{
 		Token: token,
 		User: &model.User{
-			ID:       int(user.ID),
+			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,
 			Role:     user.Role,
@@ -153,7 +155,7 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 	return &model.AuthResponse{
 		Token: token,
 		User: &model.User{
-			ID:       int(user.ID),
+			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,
 			Role:     user.Role,
@@ -178,33 +180,32 @@ func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error
 
 // NewComment is the resolver for the newComment field.
 func (r *subscriptionResolver) NewComment(ctx context.Context, videoID string) (<-chan *model.Comment, error) {
-		
-		topic := "video:"+videoID
-		rawCh, err := r.PubSub.Subscribe(topic)
-		if err != nil {
-				return nil, err
-		}
+	topic := "video:" + videoID
+	rawCh, err := r.PubSub.Subscribe(topic)
+	if err != nil {
+		return nil, err
+	}
 
-		out := make(chan *model.Comment, 1)
-		go func() {
-			for {
-				select {
-						case <- ctx.Done():
-									return
-						case raw := <-rawCh:
-								data := raw.(map[string]any)
-								out <- &model.Comment{
-										ID: int(data["id"].(float64)),
-										Text: data["text"].(string),
-										User: &model.User{
-												ID: int(data["user"].(map[string]any)["id"].(float64)),
-										},
-								}
+	out := make(chan *model.Comment, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw := <-rawCh:
+				data := raw.(map[string]any)
+				out <- &model.Comment{
+					ID:   data["id"].(string),
+					Text: data["text"].(string),
+					User: &model.User{
+						ID: data["user"].(map[string]any)["id"].(string),
+					},
 				}
-			}	
-		}()
+			}
+		}
+	}()
 
-		return out, nil
+	return out, nil
 }
 
 // Mutation returns MutationResolver implementation.

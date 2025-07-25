@@ -1,8 +1,8 @@
 package graph
 //go:generate go run github.com/99designs/gqlgen generate
 
-import (
-	"github.com/KingBean4903/graphql-vod-platform/internal/db"
+import (	
+	"gorm.io/gorm"
 	"github.com/KingBean4903/graphql-vod-platform/internal/realtime"
 )
 
@@ -11,6 +11,6 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct{
-	DB *db.Database
+	DB *gorm.DB
 	PubSub *realtime.RedisPubSub
 }

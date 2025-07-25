@@ -21,8 +21,9 @@ type Comment {
 type Video {
   id: ID!
   title: String!
-  description: String!
+  description: String
   url: String!
+  views: Int64!
   metadata: JSON
   uploader: User!
   created_at: String!
@@ -45,7 +46,7 @@ type Subscription {
 }
 
 type Mutation {
-  uploadVideo(title: String!, description: String!, url: String!, metadata: JSON): Video!
+  uploadVideo(title: String!, description: String, url: String!, metadata: JSON): Video!
   postComment(videoId: ID!, text: String!): Comment!
   likeVideo(videoId: ID!): Boolean!
   register(username: String!, email: String!, password: String!): AuthResponse!
@@ -53,6 +54,7 @@ type Mutation {
 }
 
 scalar JSON
+scalar Int64
 
 
 

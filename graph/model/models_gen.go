@@ -33,11 +33,12 @@ type User struct {
 }
 
 type Video struct {
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	URL         string  `json:"url"`
-	Metadata    *string `json:"metadata,omitempty"`
-	Uploader    *User   `json:"uploader"`
-	CreatedAt   string  `json:"created_at"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description *string        `json:"description,omitempty"`
+	URL         string         `json:"url"`
+	Views       int            `json:"views"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	Uploader    *User          `json:"uploader"`
+	CreatedAt   string         `json:"created_at"`
 }

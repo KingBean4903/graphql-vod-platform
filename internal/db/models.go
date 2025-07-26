@@ -2,13 +2,17 @@ package db
 
 import (
 	"time"
+	"fmt"
+
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
+
+
 type User struct { 
-	ID       string `gorm:"type:uuid;primaryKey;"`
+	ID      string `gorm:"type:uuid;primaryKey;"`
 	Username string `gorm:"uniqueIndex;not null"`
 	Email string `gorm:"uniqueIndex;not null"`
 	Password string `gorm:"not null"`
@@ -54,27 +58,56 @@ type WatchHistory struct {
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
-		u.ID = uuid.New().String()
+		
+		uStr := uuid.New().String()
+
+ 		uID, err :=uuid.Parse(uStr); 
+		if err != nil {
+				fmt.Println("Invalid uuid when creating user", err)
+			 return
+		}
+
+		u.ID = uID.String() 
 		return
 }
 
-func (u *Video) BeforeCreate(tx *gorm.DB) (err error) {
-		u.ID = uuid.New().String()
+func (v *Video) BeforeCreate(tx *gorm.DB) (err error) {
+
+		uStr := uuid.New().String()
+
+ 		uID, err :=uuid.Parse(uStr); 
+		if err != nil {
+				fmt.Println("Invalid uuid when creating video", err)
+			  return
+		}
+
+		v.ID = uID.String()
 		return
 }
 
-func (u *Comment) BeforeCreate(tx *gorm.DB) (err error) {
-		u.ID = uuid.New().String()
+
+func (c *Comment) BeforeCreate(tx *gorm.DB) (err error) {
+
+
+		uStr := uuid.New().String()
+
+ 		uID, err :=uuid.Parse(uStr)
+		if err != nil {
+				fmt.Println("Invalid uuid when creating comment", err)
+			 return
+		}
+
+		c.ID = uID.String()
 		return
 }
 
-func (u *Like) BeforeCreate(tx *gorm.DB) (err error) {
-		u.ID = uuid.New().String()
+func (l *Like) BeforeCreate(tx *gorm.DB) (err error) {
+		l.ID = uuid.New().String()
 		return
 }
 
-func (u *WatchHistory) BeforeCreate(tx *gorm.DB) (err error) {
-		u.ID = uuid.New().String()
+func (w *WatchHistory) BeforeCreate(tx *gorm.DB) (err error) {
+		w.ID = uuid.New().String()
 		return
 }
 

@@ -73,7 +73,7 @@ type ComplexityRoot struct {
 	Query struct {
 		User   func(childComplexity int, id string) int
 		Video  func(childComplexity int, id string) int
-		Videos func(childComplexity int) int
+		Videos func(childComplexity int, limit *int, offset *int) int
 	}
 
 	Subscription struct {
@@ -108,7 +108,7 @@ type MutationResolver interface {
 	Login(ctx context.Context, email string, password string) (*model.AuthResponse, error)
 }
 type QueryResolver interface {
-	Videos(ctx context.Context) ([]*model.Video, error)
+	Videos(ctx context.Context, limit *int, offset *int) ([]*model.Video, error)
 	Video(ctx context.Context, id string) (*model.Video, error)
 	User(ctx context.Context, id string) (*model.User, error)
 }
@@ -273,7 +273,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Query.Videos(childComplexity), true
+		args, err := ec.field_Query_videos_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Videos(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 
 	case "Subscription.newComment":
 		if e.complexity.Subscription.NewComment == nil {
@@ -825,6 +830,47 @@ func (ec *executionContext) field_Query_video_argsID(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_videos_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Query_videos_argsLimit(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := ec.field_Query_videos_argsOffset(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Query_videos_argsLimit(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (*int, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+	if tmp, ok := rawArgs["limit"]; ok {
+		return ec.unmarshalOInt642ᚖint(ctx, tmp)
+	}
+
+	var zeroVal *int
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_videos_argsOffset(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (*int, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+	if tmp, ok := rawArgs["offset"]; ok {
+		return ec.unmarshalOInt642ᚖint(ctx, tmp)
+	}
+
+	var zeroVal *int
 	return zeroVal, nil
 }
 
@@ -1632,7 +1678,7 @@ func (ec *executionContext) _Query_videos(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Videos(rctx)
+		return ec.resolvers.Query().Videos(rctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1649,7 +1695,7 @@ func (ec *executionContext) _Query_videos(ctx context.Context, field graphql.Col
 	return ec.marshalNVideo2ᚕᚖgithubᚗcomᚋKingBean4903ᚋgraphqlᚑvodᚑplatformᚋgraphᚋmodelᚐVideoᚄ(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_videos(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_videos(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -1676,6 +1722,17 @@ func (ec *executionContext) fieldContext_Query_videos(_ context.Context, field g
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_videos_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -5775,6 +5832,24 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOInt642ᚖint(ctx context.Context, v any) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt642ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt(*v)
 	return res
 }
 

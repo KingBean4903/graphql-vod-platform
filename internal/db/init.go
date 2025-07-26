@@ -27,7 +27,7 @@ func Init() {
 		log.Fatalf("Failed to connect DB: %v", err)
 	}
 
-	err = DB.AutoMigrate(&User{}, &Video{}, &Like{}, &WatchHistory{})
+	err = DB.AutoMigrate(&User{}, &Video{}, &Like{}, &Comment{}, &WatchHistory{})
 	if err != nil {
 			log.Fatal("Failed to migrate DB: ", err)
 	}

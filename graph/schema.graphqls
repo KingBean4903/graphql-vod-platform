@@ -30,7 +30,7 @@ type Video {
 }
 
 type Query {
-  videos: [Video!]!
+  videos(limit: Int64 = 10, offset: Int64 = 0): [Video!]!
   video(id: ID!): Video
   user(id: ID!): User
 }

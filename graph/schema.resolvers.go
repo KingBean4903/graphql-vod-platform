@@ -7,9 +7,9 @@ package graph
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/KingBean4903/graphql-vod-platform/graph/model"
@@ -31,7 +31,6 @@ func (r *mutationResolver) UploadVideo(ctx context.Context, title string, descri
 		Description: description,
 		URL:         url,
 		Views:       0,
-		//		Metadata:    datatypes.JSON(string(metadata)),
 		UserID: userID,
 	}
 
@@ -46,12 +45,12 @@ func (r *mutationResolver) UploadVideo(ctx context.Context, title string, descri
 	}
 
 	var uploader db.User
-	if err := db.DB.First(&uploader, userID).Error; err != nil {
+	if err := db.DB.First(&uploader, "id = ?", userID).Error; err != nil {
 		return nil, err
 	}
 
 	return &model.Video{
-		ID:          string(video.ID),
+		ID:          video.ID,
 		Title:       video.Title,
 		Description: video.Description,
 		URL:         video.URL,
@@ -59,7 +58,7 @@ func (r *mutationResolver) UploadVideo(ctx context.Context, title string, descri
 		Metadata:    metadata,
 		CreatedAt:   video.CreatedAt.Format(time.RFC3339),
 		Uploader: &model.User{
-			ID:       string(uploader.ID),
+			ID:       uploader.ID,
 			Username: uploader.Username,
 			Email:    uploader.Email,
 			Role:     uploader.Role,
@@ -80,7 +79,6 @@ func (r *mutationResolver) PostComment(ctx context.Context, videoID string, text
 		return nil, err
 	}
 
-
 	out := &model.Comment{
 		ID:   comment.ID,
 		Text: comment.Text,
@@ -89,7 +87,7 @@ func (r *mutationResolver) PostComment(ctx context.Context, videoID string, text
 
 	cmtStr, err := json.Marshal(out)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 
 	r.PubSub.Publish("video:"+videoID, string(cmtStr))
@@ -164,13 +162,94 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 }
 
 // Videos is the resolver for the videos field.
-func (r *queryResolver) Videos(ctx context.Context) ([]*model.Video, error) {
-	panic(fmt.Errorf("not implemented: Videos - videos"))
+func (r *queryResolver) Videos(ctx context.Context, limit *int, offset *int) ([]*model.Video, error) {
+
+	l := 10
+	o := 0
+
+	if limit != nil {
+		l = *limit
+	}
+
+	if offset != nil {
+		o = *offset
+	}
+
+	var videos []*db.Video
+
+	if err := r.DB.
+		Order("created_at DESC").
+		Limit(l).
+		Offset(o).
+		Preload("Uploader").
+		Find(&videos).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch videos: %w", err)
+	}
+
+	out := make([]*model.Video, len(videos))
+
+	for i, v := range videos {
+		
+		var m map[string]any
+		
+		if err := json.Unmarshal(v.Metadata, &m); err != nil {
+				fmt.Println("Failed to umarshal metadata: ", err)
+		}
+
+		out[i] = &model.Video{
+			ID:          fmt.Sprint(v.ID),
+			Title:       v.Title,
+			Description: v.Description,
+			URL:         v.URL,
+			Views:       v.Views,
+			Metadata:    m,
+			CreatedAt:   v.CreatedAt.Format(time.RFC3339),
+			Uploader: &model.User{
+				ID:        fmt.Sprint(v.Uploader.ID),
+				Username:  v.Uploader.Username,
+				Email:     v.Uploader.Email,
+				Role:      v.Uploader.Role,
+				CreatedAt: v.Uploader.CreatedAt.Format(time.RFC3339),
+			},
+		}
+	}
+
+	return out, nil
 }
 
 // Video is the resolver for the video field.
 func (r *queryResolver) Video(ctx context.Context, id string) (*model.Video, error) {
-	panic(fmt.Errorf("not implemented: Video - video"))
+	
+	var v db.Video
+
+	if err := r.DB.Preload("Uploader").First(&v, "id = ?", id).Error; err != nil {
+		return nil, fmt.Errorf("video not found")
+	}
+
+  var m map[string]any
+
+	err := json.Unmarshal(v.Metadata, &m)
+	if err != nil { 
+			fmt.Println("Error unmarshaling metadata", err)
+			return nil, err
+	}
+
+	return &model.Video{
+		ID:          fmt.Sprint(v.ID),
+		Title:       v.Title,
+		Description: v.Description,
+		URL:         v.URL,
+		Views:       v.Views,
+		Metadata:    m,
+		CreatedAt:   v.CreatedAt.Format(time.RFC3339),
+		Uploader: &model.User{
+			ID:        fmt.Sprint(v.Uploader.ID),
+			Username:  v.Uploader.Username,
+			Email:     v.Uploader.Email,
+			Role:      v.Uploader.Role,
+			CreatedAt: v.Uploader.CreatedAt.Format(time.RFC3339),
+		},
+	}, nil
 }
 
 // User is the resolver for the user field.

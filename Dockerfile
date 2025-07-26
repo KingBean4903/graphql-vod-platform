@@ -16,7 +16,7 @@ FROM scratch
 
 COPY --from=builder /app/server /app/server
 
-EXPOSE 8080
+EXPOSE 8800
 
 ENTRYPOINT ["/app/server"]
 

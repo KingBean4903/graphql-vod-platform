@@ -21,26 +21,40 @@ type Comment {
 type Video {
   id: ID!
   title: String!
-  description: String!
+  description: String
   url: String!
+  views: Int64!
   metadata: JSON
   uploader: User!
   created_at: String!
 }
 
 type Query {
-  videos: [Video!]!
+  videos(limit: Int64 = 10, offset: Int64 = 0): [Video!]!
   video(id: ID!): Video
   user(id: ID!): User
 }
 
+type AuthResponse {
+  token: String!
+  user: User!
+}
+
+
+type Subscription {
+  newComment(videoId: ID!): Comment!
+}
+
 type Mutation {
-  UploadVideo(title: String!, description: String!, url: String!, metadata: JSON): Video!
+  uploadVideo(title: String!, description: String, url: String!, metadata: JSON): Video!
   postComment(videoId: ID!, text: String!): Comment!
   likeVideo(videoId: ID!): Boolean!
+  register(username: String!, email: String!, password: String!): AuthResponse!
+  login(email: String!, password: String!): AuthResponse!
 }
 
 scalar JSON
+scalar Int64
 
 
 

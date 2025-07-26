@@ -2,6 +2,11 @@
 
 package model
 
+type AuthResponse struct {
+	Token string `json:"token"`
+	User  *User  `json:"user"`
+}
+
 type Comment struct {
 	ID        string `json:"id"`
 	Video     *Video `json:"video"`
@@ -16,6 +21,9 @@ type Mutation struct {
 type Query struct {
 }
 
+type Subscription struct {
+}
+
 type User struct {
 	ID        string `json:"id"`
 	Username  string `json:"username"`
@@ -25,11 +33,12 @@ type User struct {
 }
 
 type Video struct {
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	URL         string  `json:"url"`
-	Metadata    *string `json:"metadata,omitempty"`
-	Uploader    *User   `json:"uploader"`
-	CreatedAt   string  `json:"created_at"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Description *string        `json:"description,omitempty"`
+	URL         string         `json:"url"`
+	Views       int            `json:"views"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	Uploader    *User          `json:"uploader"`
+	CreatedAt   string         `json:"created_at"`
 }
